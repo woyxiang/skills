@@ -9,5 +9,4 @@ This repository contains custom skills and evaluation benchmarks for FreeBASIC d
 ## Structure
 
 - `SKILL.md` - Skill definitions and configuration
-- `evals/` - Evaluation benchmarks
 - `references/` - [FB-manual-1.10.1-html](https://sourceforge.net/projects/fbc/files/FreeBASIC-1.10.1/Documentation/FB-manual-1.10.1-html.zip)
