@@ -124,9 +124,9 @@ Required tools and how to install them.
 
 ## Script Usage (optional)
 
-```bash
+\`\`\`bash
 python scripts/search.py "query"
-```
+\`\`\`
 
 ## Examples (optional)
 
