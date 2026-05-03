@@ -10,5 +10,5 @@ Guide for programming in FreeBASIC, a free/open-source BASIC compiler syntax-com
 ### [lsp-builder](./skills/lsp-builder/)
 Step-by-step guide for building Language Server Protocol (LSP) servers based on the LSP 3.17 specification. Covers transport layer, capabilities negotiation, text document sync, language features, and workspace features.
 
-### [skill-creator](./skills/lsp-builder)
+### [skill-creator](./skills/skill-creator)
 Create new skills for AI agents
