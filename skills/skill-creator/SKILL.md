@@ -94,7 +94,7 @@ Every `.md` file must be registered in SKILL.md routing table.
 
 ## SKILL.md Template
 
-```markdown
+~~~markdown
 ---
 name: <name>
 description: 'One-line description. Use when: (1) trigger conditions, (2) file patterns, (3) user intent'
@@ -124,16 +124,16 @@ Required tools and how to install them.
 
 ## Script Usage (optional)
 
-\`\`\`bash
+```bash
 python scripts/search.py "query"
-\`\`\`
+```
 
 ## Examples (optional)
 
 | Example | Description |
 |---|---|
 | [example.ext](examples/example.ext) | ... |
-```
+~~~
 
 ## Writing Reference Docs (*.md)
 
