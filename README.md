@@ -12,3 +12,6 @@ Step-by-step guide for building Language Server Protocol (LSP) servers based on 
 
 ### [skill-creator](./skills/skill-creator)
 Create new skills for AI agents
+
+### [minecraft-nbt](./skills/minecraft-nbt)
+To understand Minecraft NBT (Named Binary Tag) format.
