@@ -15,3 +15,6 @@ Create new skills for AI agents
 
 ### [minecraft-nbt](./skills/minecraft-nbt)
 To understand Minecraft NBT (Named Binary Tag) format.
+
+### [scoop-manifest](./skills/scoop-manifest)
+To create a scoop manifest, bucket JSON, or app manifest
