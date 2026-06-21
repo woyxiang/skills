@@ -36,8 +36,8 @@ Create JSON manifests for the [Scoop](https://scoop.sh) Windows package manager.
 
 ## Dependencies
 
-- gh cli (if available)
-- Web search (to find GitHub repos and release pages)
+- curl or gh(use api to find GitHub repos and release pages)
+- Web search (to find app's home page)
 - JSON validation (`node -e "require('./file.json')"` or similar)
 
 ## Source
