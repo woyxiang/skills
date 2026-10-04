@@ -19,6 +19,11 @@ p.y = 20
 ## With...End With
 
 ```freebasic
+Type Point
+    x As Integer
+    y As Integer
+End Type
+
 Dim p As Point
 With p
     .x = 10

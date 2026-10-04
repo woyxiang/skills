@@ -10,22 +10,24 @@ For functions, see [procedures.md](procedures.md).
 Dim arr(0 To 9) As Integer       ' 10 elements: arr(0) to arr(9)
 Dim matrix(1 To 3, 1 To 3) As Double  ' 3x3 matrix
 
-' Dynamic (with any)
-Dim dynamic() As Integer
-ReDim dynamic(0 To 9)
+' Dynamic (can be resized with ReDim)
+Dim dyn() As Integer
+ReDim dyn(0 To 9)
 
 ' With initial values
-Dim data(3) As Integer => {1, 2, 3, 4}
+Dim values(3) As Integer => {1, 2, 3, 4}
 ```
 
 ## Array Functions
 
+There are no `ArrayLen`/`ArraySize` functions - derive them from bounds:
+
 ```freebasic
 Dim arr(0 To 9) As Integer
-LBound(arr)      ' returns 0 (lower bound)
-UBound(arr)      ' returns 9 (upper bound)
-ArrayLen(arr)    ' returns 10 (number of elements)
-ArraySize(arr)   ' returns 40 (bytes)
+Print LBound(arr)                              ' 0 (lower bound)
+Print UBound(arr)                              ' 9 (upper bound)
+Print UBound(arr) - LBound(arr) + 1            ' 10 (number of elements)
+Print (UBound(arr) - LBound(arr) + 1) * SizeOf(Integer)  ' size in bytes
 ```
 
 ## ReDim and Preserve
@@ -53,18 +55,23 @@ Dim cube(0 To 1, 0 To 1, 0 To 1) As Integer
 ```freebasic
 ' Access internal array descriptor
 #include "fbc-int/array.bi"
+Dim myArray(0 To 9) As Integer
 Dim pd As FBC.FBARRAY Ptr = FBC.ArrayDescriptorPtr(myArray())
 ```
 
 ## Static vs Dynamic
 
-```freebasic
-'$Static  ' default for fixed-size (stack allocated)
-'$Dynamic ' force heap allocation
+In `-lang fb` a `Dim` with constant bounds is fixed-size and a `Dim arr()` resized with `ReDim` is dynamic - there is no switch to flip. `'$Static`/`'$Dynamic` and `Option Static`/`Option Dynamic` exist only in `-lang fblite`/`qb` (error 146 in `-lang fb`).
 
-Dim static(100) As Integer    ' stack (or static)
-Dim dynamic() As Integer
-ReDim dynamic(1000) As Integer  ' heap
+```freebasic
+#lang "fblite"
+
+'$Static                  ' fixed-size arrays by default
+Dim st(100) As Integer
+
+'$Dynamic                 ' heap-allocated arrays
+Dim dyn() As Integer
+ReDim dyn(1000) As Integer
 ```
 
 ## Initializing Arrays
@@ -76,7 +83,8 @@ Dim nums(2) As Integer => {10, 20, 30}
 ' Multi-dimension
 Dim grid(1, 1) As Integer => {{1, 2}, {3, 4}}
 
-' Erase clears array
+' Erase clears/reallocates
+Dim arr(0 To 9) As Integer
 Erase arr
 ```
 

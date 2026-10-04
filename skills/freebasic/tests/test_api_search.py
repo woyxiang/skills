@@ -57,13 +57,48 @@ def test_search_relevance():
     print("  Results are relevant... OK")
 
 
-def test_exact_lookup():
-    """Exact lookup should find keywords."""
+def test_name_lookup():
+    """Lookup should find keywords by name and alias, without confusion."""
     api_data = _load_api_data()
-    result = search_api.exact_lookup("(Print | ?)", api_data)
-    assert result is not None, "Exact lookup failed for '(Print | ?)'"
-    assert result['category'] == 'console'
-    print("  Exact lookup for '(Print | ?)'... OK")
+
+    entry, _ = search_api.lookup("Print", api_data)
+    assert entry is not None, "Lookup failed for 'Print'"
+    assert entry['name'] == 'Print', f"Expected Print, got {entry['name']}"
+
+    entry, _ = search_api.lookup("?", api_data)
+    assert entry is not None and entry['name'] == 'Print', "Alias '?' should map to Print"
+
+    entry, _ = search_api.lookup("#print", api_data)
+    assert entry is not None and entry['name'] == '#print', "'#print' must not resolve to 'Print'"
+
+    entry, candidates = search_api.lookup("Mid", api_data)
+    assert entry is not None or len(candidates) >= 2, "Ambiguous 'Mid' should list candidates"
+    print("  Name/alias lookup... OK")
+
+
+def test_search_prefers_exact_name():
+    """A query naming a keyword should rank that keyword first."""
+    index = _load_index()
+    api_data = _load_api_data()
+    results = search_api.search("print to screen", index, top=3)
+    top_name = api_data['keywords'][results[0][0]]['name']
+    assert top_name == 'Print', f"Expected Print first, got {top_name}"
+    print("  Search prefers exact name... OK")
+
+
+def test_data_quality():
+    """api.json must be clean: no Syntax bleed into descriptions, real example code."""
+    api_data = _load_api_data()
+    assert api_data.get('version'), "api.json missing manual version"
+    for kw in api_data['keywords']:
+        desc = kw.get('description') or ''
+        assert ' Declare Function ' not in desc and ' Declare Sub ' not in desc,             f"{kw['name']}: description polluted with syntax"
+        for ex in kw.get('examples', []):
+            assert 'Dimn' not in ex and 'PrintAbs' not in ex,                 f"{kw['name']}: example lost whitespace"
+    params = [p for kw in api_data['keywords'] for p in kw.get('parameters', [])]
+    with_desc = [p for p in params if p.get('description')]
+    assert len(with_desc) > 0.9 * len(params), "Too many parameters without descriptions"
+    print(f"  Data quality ({len(params)} params, {len(with_desc)} described)... OK")
 
 
 def test_tokenize():
@@ -94,6 +129,8 @@ if __name__ == "__main__":
     test_categories()
     test_search_returns_results()
     test_search_relevance()
-    test_exact_lookup()
+    test_name_lookup()
+    test_search_prefers_exact_name()
+    test_data_quality()
 
     print("\nAll API search tests passed!")

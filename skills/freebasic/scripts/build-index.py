@@ -17,7 +17,9 @@ B = 0.75
 # Field weights for scoring
 WEIGHTS = {
     'name': 3.0,
+    'aliases': 3.0,
     'syntax': 2.0,
+    'usage': 1.5,
     'description': 1.0,
     'category': 1.5,
     'parameters': 1.0,
@@ -44,8 +46,9 @@ def build_index(api_data: dict) -> dict:
     doc_fields = []
     for kw in keywords:
         fields = {}
-        for field in ['name', 'syntax', 'description', 'category']:
+        for field in ['name', 'syntax', 'usage', 'description', 'category']:
             fields[field] = tokenize(kw.get(field, '') or '')
+        fields['aliases'] = tokenize(' '.join(kw.get('aliases', []) or []))
         fields['parameters'] = tokenize(
             ' '.join(p.get('name', '') + ' ' + p.get('description', '') for p in kw.get('parameters', []))
         )
@@ -73,7 +76,7 @@ def build_index(api_data: dict) -> dict:
                 inverted[term]['postings'].append({
                     'doc_id': doc_id,
                     'field': field_name,
-                    'tf': 1,  # Simplified - count occurrences
+                    'tf': max(1, tokens.count(term)),
                     'weight': weight
                 })
 
@@ -87,7 +90,9 @@ def build_index(api_data: dict) -> dict:
         doc_lengths.append(doc_len)
 
     return {
-        'version': '1.0',
+        'version': '1.1',
+        'api_version': api_data.get('version'),
+        'api_source': api_data.get('source'),
         'document_count': total_docs,
         'average_length': avg_length,
         'k1': K1,

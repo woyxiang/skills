@@ -39,14 +39,12 @@ For conditional compilation, see [control-flow.md](control-flow.md).
 ## Macro Procedures
 
 ```freebasic
-#macro Assert(expr)
-    #ifndef DEBUG
-        Dim As Integer temp = 0
-        If Not (expr) Then temp = 1 \ 0
-    #endif
+#macro Check(expr)
+    If (expr) = 0 Then Print "check failed: " + #expr
 #endmacro
 
-Assert(x > 0)
+Dim As Integer x = 5
+Check(x > 0)
 ```
 
 ## Include Files
@@ -76,14 +74,14 @@ Declare Function GetDC Lib "user32" (ByVal hwnd As Any) As Long
 
 ## Pragmas
 
-```freebasic
-#pragma static
-#pragma dynamic
-#pragma opt level
+Real options are `msbitfields`, `once`, `constness`, `lookup108` (plus `push`/`pop` to save and restore). There is no `#pragma static`/`dynamic`/`opt`/`reserve` - use `Option`s and `Dim`/`ReDim` instead.
 
-' Reserve space
-Dim shared buffer(1024) As Byte
-#pragma reserve buffer, 1024
+```freebasic
+#pragma once                    ' include-guard for this source file
+
+#pragma push(constness, false)  ' silence "CONST qualifier discarded" warnings
+' ... code ...
+#pragma pop(constness)
 ```
 
 ## Other Directives
@@ -91,7 +89,7 @@ Dim shared buffer(1024) As Byte
 ```freebasic
 #print "Compiling..."           ' print during compile
 #error "Custom error message"   ' abort with error
-#assert condition              ' assertion check
+#assert 1 = 1                  ' compile-time assertion
 
 #line 100 "source.bas"          ' change line number / file
 ```
@@ -102,7 +100,9 @@ Dim shared buffer(1024) As Byte
 '$Dynamic                     ' force dynamic arrays
 '$Static                      ' force static arrays
 '$Include "file.bi"           ' include file
-'$If defined(symbol)          ' conditional
+
+' Note: '$Dynamic/$Static/$Include are only in -lang fblite/qb
+' and must be the first token on the line. There is no '$If - use #if.
 ```
 
 ## Examples
@@ -114,11 +114,11 @@ Dim shared buffer(1024) As Byte
 #endif
 
 ' Platform detection
-#ifdef __FB_DOS__
+#if defined(__FB_DOS__)
     Print "DOS platform"
-#elseif __FB_LINUX__
+#elseif defined(__FB_LINUX__)
     Print "Linux platform"
-#elseif __FB_WIN32__
+#elseif defined(__FB_WIN32__)
     Print "Windows platform"
 #endif
 

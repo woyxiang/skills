@@ -8,7 +8,7 @@ For types, see [user-defined-types.md](user-defined-types.md).
 ```freebasic
 Dim p As Integer Ptr
 Dim s As String Ptr
-Dim byref As Integer Ptr  ' same as Integer Ptr
+Dim q As Integer Pointer  ' Pointer and Ptr are synonyms
 ```
 
 ## AddressOf
@@ -40,7 +40,7 @@ p = 0                        ' set to NULL
 ```freebasic
 Dim p As Integer Ptr = 0
 If p = 0 Then Print "Pointer is NULL"
-If p = Null Then Print "NULL pointer"
+' There is no Null keyword - compare against 0
 ```
 
 ## Pointer Arithmetic
@@ -65,10 +65,12 @@ Next
 ```freebasic
 Type CompareFunc As Function(ByVal As Integer, ByVal As Integer) As Integer
 
-Dim cmp As CompareFunc
-cmp = @MyCompare
+Function MyCompare(ByVal a As Integer, ByVal b As Integer) As Integer
+    Return a - b
+End Function
 
-result = cmp(a, b)
+Dim cmp As CompareFunc = @MyCompare
+Print cmp(3, 1)   ' 2
 ```
 
 ## Typedef

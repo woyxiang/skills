@@ -16,8 +16,8 @@ Dim result As Integer = Add(3, 4)  ' 7
 ## Sub
 
 ```freebasic
-Sub SayHello(name As String)
-    Print "Hello, " + name + "!"
+Sub SayHello(msg As String)
+    Print "Hello, " + msg + "!"
 End Sub
 
 SayHello("World")
@@ -41,8 +41,9 @@ Sub ProcOpt(ByVal x As Integer = 0)
     Print x
 End Sub
 
-' ParamArray (variable arguments)
-Sub ProcMulti(ParamArray args())
+' Variable number of arguments: pass an array
+' (FreeBASIC has no ParamArray - that is VB)
+Sub PrintAll(args() As Integer)
     For i As Integer = 0 To Ubound(args)
         Print args(i)
     Next
@@ -52,12 +53,12 @@ End Sub
 ## Overloading
 
 ```freebasic
-' Multiple functions with same name, different parameters
-Function Add(ByVal a As Integer, ByVal b As Integer) As Integer
+' Multiple functions with same name: mark each with Overload
+Function Add Overload (ByVal a As Integer, ByVal b As Integer) As Integer
     Return a + b
 End Function
 
-Function Add(ByVal a As Double, ByVal b As Double) As Double
+Function Add Overload (ByVal a As Double, ByVal b As Double) As Double
     Return a + b
 End Function
 ```
@@ -108,11 +109,14 @@ End Sub
 ## Lambda / Inline Functions
 
 ```freebasic
-' Not directly supported; use Function
-Dim add As Function(ByVal As Integer, ByVal As Integer) As Integer
-add = @Function(ByVal a As Integer, ByVal b As Integer) As Integer
+' FreeBASIC has no lambdas - use a named function and its address
+Function Add(ByVal a As Integer, ByVal b As Integer) As Integer
     Return a + b
 End Function
+
+Dim fn As Function(ByVal As Integer, ByVal As Integer) As Integer
+fn = @Add
+Print fn(2, 3)   ' 5
 ```
 
 ## See Also

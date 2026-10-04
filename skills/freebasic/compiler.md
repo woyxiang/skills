@@ -6,10 +6,10 @@ For dialects, see [compiler.md](compiler.md).
 ## Command Line
 
 ```bash
-fbc myprogram.bas              ' compile
-fbc -s console prog.bas        ' console subsystem
-fbc -s gui prog.bas            ' GUI subsystem
-fbc -exx prog.bas              ' extended error info
+fbc myprogram.bas              # compile
+fbc -s console prog.bas        # console subsystem
+fbc -s gui prog.bas            # GUI subsystem
+fbc -exx prog.bas              # extended error checking
 ```
 
 ## Compiler Options
@@ -17,6 +17,9 @@ fbc -exx prog.bas              ' extended error info
 | Option | Description |
 |--------|-------------|
 | -lang fb/qb/fblite | Set dialect |
+| -e | Enable runtime error checking |
+| -ex | Error checking with Resume support (needed for On Error handlers) |
+| -exx | Extended error checking (array bounds, null ptr, division by zero) |
 | -module name | Create module |
 | -export | Export symbols |
 | -profile | Enable profiling |
@@ -28,7 +31,7 @@ fbc -exx prog.bas              ' extended error info
 Modern FreeBASIC with all features.
 
 ```freebasic
-#lang fb
+#lang "fb"
 Dim As Integer x = 10
 ```
 
@@ -36,7 +39,7 @@ Dim As Integer x = 10
 QBASIC compatibility mode.
 
 ```freebasic
-#lang qb
+#lang "qb"
 x = 10  ' without Dim
 ```
 
@@ -44,7 +47,7 @@ x = 10  ' without Dim
 Moderated compatibility.
 
 ```freebasic
-#lang fblite
+#lang "fblite"
 Dim As Integer x
 ```
 
@@ -60,22 +63,24 @@ Dim As Integer x
 ## QB to FB Migration
 
 ```freebasic
-' QB style
+' QB style (DEFINT and suffixes need -lang fblite/qb)
+#lang "fblite"
+
 DEFINT A-Z
 FOR I = 1 TO 10
     PRINT I
 NEXT I
 
 ' FB style
-For i As Integer = 1 To 10
-    Print i
+For j As Integer = 1 To 10
+    Print j
 Next
 ```
 
 ## Preprocessor
 
 ```bash
-fbc -d DEBUG myprogram.bas     ' define DEBUG symbol
+fbc -d DEBUG myprogram.bas     # define DEBUG symbol
 ```
 
 ## Optimization
@@ -90,7 +95,7 @@ fbc -d DEBUG myprogram.bas     ' define DEBUG symbol
 ## Error Messages
 
 ```bash
-fbc -exx prog.bas    ' extra error info
+fbc -exx prog.bas    # extra error info
 ```
 
 ## See Also

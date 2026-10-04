@@ -12,10 +12,10 @@ For user-defined types, see [user-defined-types.md](user-defined-types.md).
 | UByte | 1 byte | 0 to 255 |
 | Short | 2 bytes | -32768 to 32767 |
 | UShort | 2 bytes | 0 to 65535 |
-| Integer | 4 bytes | -2147483648 to 2147483647 |
-| UInteger | 4 bytes | 0 to 4294967295 |
-| Long | 4 bytes | Same as Integer |
-| ULong | 4 bytes | Same as UInteger |
+| Integer | 4 or 8 bytes | platform-sized: 32-bit target, 64-bit on 64-bit targets |
+| UInteger | 4 or 8 bytes | same, unsigned |
+| Long | 4 bytes | -2147483648 to 2147483647 (always 32-bit) |
+| ULong | 4 bytes | 0 to 4294967295 (always 32-bit) |
 | LongInt | 8 bytes | -9223372036854775808 to 9223372036854775807 |
 | ULongInt | 8 bytes | 0 to 18446744073709551615 |
 | Single | 4 bytes | ±1.5e-45 to ±3.4e38 |
@@ -40,7 +40,7 @@ Dim As WString * 256 w          ' wide string (Unicode)
 ```freebasic
 Dim x As Integer          ' explicit type
 Dim y As Double = 3.14    ' with initializer
-Dim z                     ' implicit type (default Integer)
+Dim z As Integer          ' (in -lang qb/fblite, "Dim z" implies Integer)
 Var w = 123               ' Var infers type
 
 ' Multiple variables
@@ -49,24 +49,33 @@ Dim As Integer a, b, c
 
 ## Type Suffixes (QB compatibility)
 
+Only available in `-lang qb`/`fblite`/`deprecated` - error 147 in `-lang fb`.
+
 ```freebasic
+#lang "fblite"
+
 Dim x%       ' Integer
 Dim y!       ' Single
 Dim z#       ' Double
 Dim s$       ' String
 Dim l&       ' Long
-Dim sb%      ' Short
-Dim ub%      ' UByte
 ```
 
 ## Variable Modifiers
 
 ```freebasic
-Dim Shared x As Integer    ' global scope
-Dim Static y As Integer     ' persists between calls
-Dim Const PI As Double = 3.14159  ' constant
-Dim ByRef r As Integer      ' reference to another variable
-Dim As Integer Ptr p        ' pointer
+Dim Shared x As Integer    ' global scope (module level)
+
+Const PI As Double = 3.14159       ' constant (not Dim Const)
+
+Dim As Integer target = 5
+Dim ByRef r As Integer = target    ' reference alias (must be initialized)
+Dim As Integer Ptr p               ' pointer
+
+Sub Counter()
+    Static calls As Integer        ' persists between calls (not Dim Static)
+    calls += 1
+End Sub
 ```
 
 ## Type Casting
@@ -85,14 +94,14 @@ Dim As Integer x        ' 0
 Dim As Double d         ' 0.0
 Dim As String s         ' "" (empty)
 Dim As Boolean b        ' False
-Dim As Integer Ptr p    ' 0 (Null)
+Dim As Integer Ptr p    ' 0 (there is no Null keyword)
 ```
 
 ## Size and Length
 
 ```freebasic
 Dim As Integer arr(0 To 9)
-Print SizeOf(arr)      ' 40 bytes (10 * 4)
+Print SizeOf(arr)      ' 10 * SizeOf(Integer) bytes
 Print Len(s)           ' string length
 ```
 

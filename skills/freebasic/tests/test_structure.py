@@ -42,6 +42,7 @@ def test_all_doc_files_exist():
         "math.md",
         "date-time.md",
         "compiler.md",
+        "debug.md",
     ]
 
     for doc in expected_docs:

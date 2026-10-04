@@ -21,6 +21,7 @@ If x > 0 Then Print "positive"
 ## Select Case
 
 ```freebasic
+Dim grade As Integer = 85
 Select Case grade
     Case Is >= 90
         Print "A"
@@ -87,6 +88,7 @@ For i = 1 To 10
     Print i
 Next
 
+Dim someCondition As Integer = 0
 Do While True
     If someCondition Then Exit Do
 Loop

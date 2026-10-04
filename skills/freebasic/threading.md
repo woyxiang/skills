@@ -1,14 +1,16 @@
 For time functions, see [date-time.md](date-time.md).
-For synchronization, see [error-handling.md](error-handling.md).
+For error handling, see [error-handling.md](error-handling.md).
 
 # Threading and Synchronization
+
+Threading is not available in the `-lang qb` dialect. Thread procedures have the signature `Sub (ByVal userdata As Any Ptr)`; the handle and mutex types are `Any Ptr`.
 
 ## Creating Threads
 
 ```freebasic
 Dim As Any Ptr handle
 
-Sub MyThread(param As Any Ptr)
+Sub MyThread(ByVal param As Any Ptr)
     Print "Thread running"
 End Sub
 
@@ -19,9 +21,9 @@ ThreadWait(handle)
 ## ThreadCreate with Parameters
 
 ```freebasic
-Dim shared counter As Integer
+Dim Shared counter As Integer
 
-Sub ThreadFunc(param As Any Ptr)
+Sub ThreadFunc(ByVal param As Any Ptr)
     Dim As Integer count = *Cast(Integer Ptr, param)
     For i As Integer = 1 To count
         Print "Count: "; i
@@ -35,6 +37,8 @@ ThreadWait(handle)
 
 ## Mutex
 
+The portable synchronization primitive. A thread that calls `MutexLock` on a locked mutex waits until it is released.
+
 ```freebasic
 Dim mutex As Any Ptr
 
@@ -45,61 +49,84 @@ MutexUnlock(mutex)
 MutexDestroy(mutex)
 ```
 
-## Critical Sections
+## Critical Sections (Windows only)
+
+`CRITICAL_SECTION` is a Win32 API type, not a FreeBASIC keyword — Windows only, needs `#include once "windows.bi"`. Portable code should use a Mutex instead.
 
 ```freebasic
-Dim cs As CRITICAL_SECTION
+#include once "windows.bi"
 
+Dim cs As CRITICAL_SECTION
+InitializeCriticalSection(@cs)
 EnterCriticalSection(@cs)
     ' protected code
 LeaveCriticalSection(@cs)
+DeleteCriticalSection(@cs)
 ```
 
 ## Sleep and Wait
 
 ```freebasic
-Sleep 1000              ' sleep 1 second
-ThreadWait(handle)      ' wait for thread
+Sleep 1000              ' sleep 1 second (see date-time.md for dialect quirks)
+ThreadWait(handle)      ' wait for a thread to finish
 ```
 
-## Thread Info
+## Thread Identity
 
 ```freebasic
-Dim id As Any Ptr = ThreadVar
-' Thread-local storage
+#include once "fbthread.bi"   ' ThreadSelf lives here
+
+Sub Worker(ByVal param As Any Ptr)
+    Print "my thread handle: "; ThreadSelf()
+End Sub
+
+Dim h As Any Ptr = ThreadCreate(@Worker)
+ThreadWait(h)
 ```
+
+`ThreadSelf()` returns the current thread's handle. FreeBASIC has no thread-local storage keyword: keep per-thread state in variables passed via the `param` pointer, or allocate per thread.
 
 ## Thread Example (Producer/Consumer)
 
 ```freebasic
-Dim shared buffer(0 To 9) As Integer
-Dim shared bufferIndex As Integer
-Dim shared mutex As Any Ptr
+Const MAXITEMS = 10
 
-Sub Producer()
-    For i As Integer = 0 To 99
+Dim Shared buffer(0 To MAXITEMS - 1) As Integer
+Dim Shared count As Integer            ' items currently in the buffer
+Dim Shared mutex As Any Ptr
+
+Sub Producer(ByVal param As Any Ptr)
+    For i As Integer = 1 To 20
         MutexLock(mutex)
-        buffer(bufferIndex Mod 10) = i
-        bufferIndex += 1
+        If count < MAXITEMS Then
+            buffer(count) = i
+            count += 1
+        End If
         MutexUnlock(mutex)
         Sleep 1
     Next
 End Sub
 
-Sub Consumer()
-    Dim sum As Integer
-    Do While sum < 100
+Sub Consumer(ByVal param As Any Ptr)
+    Dim consumed As Integer
+    Do While consumed < 20
         MutexLock(mutex)
-        If bufferIndex > 0 Then
-            sum += 1
+        If count > 0 Then
+            count -= 1
+            consumed += 1
+            Print "got "; buffer(count)
         End If
         MutexUnlock(mutex)
+        Sleep 1
     Loop
 End Sub
 
 mutex = MutexCreate()
-ThreadCreate(@Producer)
-ThreadCreate(@Consumer)
+Dim p As Any Ptr = ThreadCreate(@Producer)
+Dim c As Any Ptr = ThreadCreate(@Consumer)
+ThreadWait(p)
+ThreadWait(c)
+MutexDestroy(mutex)
 ```
 
 ## See Also

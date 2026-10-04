@@ -47,30 +47,35 @@ Dim x As Integer ' Inline comment
 ```freebasic
 Print "Hello"  ' prints with newline
 Print "Hello"; "World"  ' semicolon = no space
-Print "Value: "; x  ' prints variable
+
+Dim person As String = "Alice"
+Dim age As Integer = 25
+Print "Value: "; age  ' prints variable
 
 ' Comma = column separator (14 char boundary)
-Print "Name: "; name, "Age: "; age
+Print "Name: "; person, "Age: "; age
 ```
 
 ### Input
 ```freebasic
-Dim name As String
+Dim username As String
 Print "Enter your name: ";
-Input name
+Input username
 
 ' With prompt
+Dim age As Integer
 Input "Your age: ", age
 
 ' Line input (get entire line)
-Dim line As String
-Line Input line
+Dim s As String
+Line Input s
 ```
 
 ### Color and Cursor
 ```freebasic
 Color 12, 0  ' foreground, background
 Cls  ' clear screen
+Dim row As Integer = 5, col As Integer = 10
 Locate row, col  ' position cursor
 Print "text"
 ```

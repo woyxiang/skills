@@ -1,55 +1,52 @@
 ---
 name: freebasic
-description: FreeBASIC programming language skill for AI code assistants
+description: 'FreeBASIC (fbc) language reference and coding guide. Use when: (1) Writing, debugging or reviewing FreeBASIC code (.bas, .bi), (2) User mentions FreeBASIC, fbc, -lang fb/qb/fblite, or QBASIC/QB64 migration, (3) Converting VB/QB code to FreeBASIC, (4) Answering questions about FreeBASIC syntax, stdlib, graphics, threading or compiler options'
 ---
 
 # FreeBASIC Skill
 
-FreeBASIC is a free/open source, BASIC compiler for Linux, Windows, and DOS.
+FreeBASIC is a free/open source BASIC compiler for Linux, Windows, and DOS. This skill targets **fbc 1.10.1**; the embedded API index (`data/api.json`) is extracted from the 1.10.1 manual.
 
 ## Detection
 
-This skill activates when working with FreeBASIC code or projects. Watch for:
-
 **File extensions:** `.bas`, `.bi`
-
-**Comments:**
-```freebasic
-' FreeBASIC comment
-```
 
 **Language markers:**
 - `Dim`, `Var`, `Function`, `Sub`, `Print`, `Input`, `If`, `For`, `While`
-- `#if`, `#define`, `#include` (preprocessor)
+- `#if`, `#define`, `#include`, `#lang "fb"` (preprocessor)
 - `End Function`, `End Sub`, `End Type`
 - Compiler options: `-lang fb`, `-lang qb`, `-lang fblite`
-- Meta-statements: `$Dynamic`, `$Static`, `$Include`
+- Meta-statements: `'$Dynamic`, `'$Static`, `'$Include`
 
-## Quick Reference
+## Compile and Verify
 
-### Keywords
-
-| Keyword | Description | Doc |
-|---------|-------------|-----|
-| Dim, Var | Declare variables | [types.md](types.md) |
-| Function, Sub | Define procedures | [procedures.md](procedures.md) |
-| If, Then, Else | Conditional execution | [control-flow.md](control-flow.md) |
-| For, While, Do | Loops | [control-flow.md](control-flow.md) |
-| Print, Input | Console I/O | [basics.md](basics.md) |
-| Open, Close, Get, Put | File I/O | [file-io.md](file-io.md) |
-| String, Len, Mid | String operations | [strings.md](strings.md) |
-| Screen, Circle, Line | Graphics | [graphics.md](graphics.md) |
-
-### API Search
-
-Use the search script to find keywords:
+Code is not done until it compiles. The loop:
 
 ```bash
-python scripts/search-api.py "print to screen" --top 5
-python scripts/search-api.py --name "Print" -v
-python scripts/search-api.py --json "array dimension"
-python scripts/search-api.py --list-categories
+fbc -w all prog.bas -x prog    # compile (warnings on), produce executable
+./prog                          # run it, compare output with what you claimed
 ```
+
+To settle a semantics question, compile a throwaway program instead of guessing:
+
+```bash
+printf 'Print CInt(2.5)\n' > /tmp/t.bas && fbc /tmp/t.bas -x /tmp/t && /tmp/t
+```
+
+To check every code example in this skill's docs: `python scripts/validate-examples.py`. When verifying output for the user, run the program and diff its actual output against the requirement; report what you ran.
+
+## Common Errors
+
+| Error | Fix |
+|-------|-----|
+| error 42: Variable not declared | Missing `Dim`, or the function lives in a header (`Now` needs `vbcompat.bi`) - see [debug.md](debug.md) |
+| error 4: Duplicated definition | Identifier reused case-insensitively, or it is a reserved word (`name`, `line`, `width`...) |
+| error 14: Expected identifier | Reserved word used as a name (`Dim x As Date` - there is no Date type) |
+| error 146/147: Only valid in -lang deprecated or fblite or qb | `Resume`, `DEFINT`, suffixes, `'$Dynamic` need the QB dialects |
+| error 17: Syntax error in `#lang fb` | Quotes required: `#lang "fb"` |
+| error 61: Illegal inside functions | Sub/Function nested inside another, or module-level statement in a procedure |
+
+More traps (VB functions that do not exist, banker's rounding, `Err` resetting, precedence surprises): [debug.md](debug.md).
 
 ## Topic Routing
 
@@ -57,12 +54,12 @@ python scripts/search-api.py --list-categories
 
 | Task | Doc |
 |------|-----|
-| Hello World, first program | [basics.md](basics.md) |
+| Hello World, first program, console I/O | [basics.md](basics.md) |
 | Variables and data types | [types.md](types.md) |
-| Operators and expressions | [operators.md](operators.md) |
-| Control flow (if, for, while) | [control-flow.md](control-flow.md) |
+| Operators, expressions, precedence | [operators.md](operators.md) |
+| Control flow (if, for, while, select) | [control-flow.md](control-flow.md) |
 | Functions and subs | [procedures.md](procedures.md) |
-| Arrays and dynamic memory | [arrays.md](arrays.md) |
+| Arrays | [arrays.md](arrays.md) |
 | Strings and string functions | [strings.md](strings.md) |
 
 ### Data Types
@@ -70,18 +67,18 @@ python scripts/search-api.py --list-categories
 | Task | Doc |
 |------|-----|
 | Integer, Double, Boolean | [types.md](types.md) |
-| User-defined types (UDT) | [user-defined-types.md](user-defined-types.md) |
-| Pointers and memory | [pointers.md](pointers.md) |
+| User-defined types (UDT), constructors, unions | [user-defined-types.md](user-defined-types.md) |
+| Pointers, memory, function pointers | [pointers.md](pointers.md) |
 | Type casting and conversion | [types.md](types.md) |
 
 ### Standard Library
 
 | Task | Doc |
 |------|-----|
-| File I/O (Open, Print#, Get, Put) | [file-io.md](file-io.md) |
-| Console I/O (Print, Input, Color) | [basics.md](basics.md) |
-| Date and time functions | [date-time.md](date-time.md) |
-| Math functions (Abs, Sin, Cos) | [math.md](math.md) |
+| File I/O (Open, Print#, Get, Put, Seek) | [file-io.md](file-io.md) |
+| Console I/O (Print, Input, Color, Locate) | [basics.md](basics.md) |
+| Date and time (needs vbcompat.bi) | [date-time.md](date-time.md) |
+| Math functions (Abs, Sin, Atn, Rnd) | [math.md](math.md) |
 | Memory allocation | [pointers.md](pointers.md) |
 
 ### Graphics & UI
@@ -89,18 +86,40 @@ python scripts/search-api.py --list-categories
 | Task | Doc |
 |------|-----|
 | Screen modes and drawing | [graphics.md](graphics.md) |
-| User input (mouse, keyboard) | [graphics.md](graphics.md) |
+| User input (mouse, keyboard, MultiKey) | [graphics.md](graphics.md) |
 | Images and sprites | [graphics.md](graphics.md) |
 
 ### Advanced Topics
 
 | Task | Doc |
 |------|-----|
-| Preprocessor directives | [preprocessor.md](preprocessor.md) |
+| Preprocessor directives, macros | [preprocessor.md](preprocessor.md) |
 | Threading and synchronization | [threading.md](threading.md) |
-| Error handling (On Error) | [error-handling.md](error-handling.md) |
+| Error handling (On Error, Err, -ex) | [error-handling.md](error-handling.md) |
 | Compiler options and dialects | [compiler.md](compiler.md) |
-| QB migration guide | [compiler.md](compiler.md) |
+| QB/VB migration, dialect differences | [compiler.md](compiler.md), [debug.md](debug.md) |
+| Bugs, gotchas, "why does this compile wrong" | [debug.md](debug.md) |
+
+## API Search
+
+The skill embeds the full 1.10.1 keyword index (626 entries with syntax, parameters, examples):
+
+```bash
+python scripts/search-api.py "print to screen"       # full-text search
+python scripts/search-api.py --name Print -v         # exact keyword lookup
+python scripts/search-api.py --name "?"              # aliases work
+python scripts/search-api.py --list-categories       # browse categories
+python scripts/search-api.py "array" --json          # machine-readable
+```
+
+## Starter Programs
+
+Copy the closest starter, adjust, compile - faster than starting from blank:
+
+| Example | Start here when you want... |
+|---------|------------------------------|
+| [console-app.bas](examples/console-app.bas) | A console program: input, loops, functions |
+| [file-report.bas](examples/file-report.bas) | File I/O and text processing |
 
 ## Syntax Examples
 
@@ -113,7 +132,7 @@ Print "Hello, World!"
 ```freebasic
 Dim As Integer x = 10
 Dim As Double pi = 3.14159
-Dim As String name = "FreeBASIC"
+Dim As String s = "FreeBASIC"
 ```
 
 ### Arrays
@@ -123,40 +142,21 @@ Dim matrix(1 To 3, 1 To 3) As Double
 ReDim Preserve array(0 To 20)
 ```
 
-### Control Flow
-```freebasic
-If x > 0 Then
-    Print "positive"
-ElseIf x < 0 Then
-    Print "negative"
-Else
-    Print "zero"
-End If
-
-For i As Integer = 1 To 10
-    Print i
-Next
-
-Do While condition
-    ' ...
-Loop
-```
-
 ### Functions
 ```freebasic
 Function Add(ByVal a As Integer, ByVal b As Integer) As Integer
     Return a + b
 End Function
 
-Sub SayHello(name As String)
-    Print "Hello, " + name + "!"
+Sub SayHello(ByVal msg As String)
+    Print "Hello, " + msg + "!"
 End Sub
 ```
 
 ## Dependencies
 
-- FreeBASIC compiler (fbc)
-- Python 3.10+ for search scripts
+- FreeBASIC compiler (fbc) 1.10.x
+- Python 3.10+ for search/validate scripts
 
 ## See Also
 

@@ -1,268 +1,338 @@
 #!/usr/bin/env python3
 """
-Extract API entries from FreeBASIC manual HTML files.
-Parses KeyPg*.html files to generate api.json with keyword metadata.
+Extract API entries from FreeBASIC manual HTML files (stdlib only).
+
+Parses KeyPg*.html pages into data/api.json. Each entry keeps:
+  - clean description (intro prose only, not polluted with the Syntax block)
+  - syntax/usage with line breaks preserved (one overload per line)
+  - parameter names AND descriptions
+  - example code with whitespace intact (spaces are `&nbsp;` in the manual)
+  - expected example output when the page shows one
+
+Category and doc routing come from the manual's own CatPg*.html category pages.
+
+Usage:
+    python scripts/extract-api.py [--manual DIR] [--output FILE]
+
+Manual directory resolution:
+    --manual DIR, then $FREEBASIC_MANUAL_DIR, then ../references/FB-manual,
+    then E:/scoop/apps/freebasic/current/doc/FB-manual-1.10.1-html
 """
 
+import argparse
 import json
-import re
 import os
+import re
+import sys
+from html import unescape
 from pathlib import Path
 from typing import Optional
-from html import unescape
 
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    print("Error: beautifulsoup4 is required. Install with: pip install beautifulsoup4")
-    exit(1)
+MANUAL_VERSION = "1.10.1"
+
+# CatPg*.html page -> (category, skill doc)
+CATEGORY_MAP = {
+    "CatPgArray": ("arrays", "arrays.md"),
+    "CatPgBits": ("types", "types.md"),
+    "CatPgCasting": ("types", "types.md"),
+    "CatPgCompilerSwitches": ("compiler", "compiler.md"),
+    "CatPgCompOpt": ("compiler", "compiler.md"),
+    "CatPgConsole": ("console", "basics.md"),
+    "CatPgControlFlow": ("control-flow", "control-flow.md"),
+    "CatPgDate": ("date-time", "date-time.md"),
+    "CatPgDddefines": ("preprocessor", "preprocessor.md"),
+    "CatPgError": ("error-handling", "error-handling.md"),
+    "CatPgFile": ("file-io", "file-io.md"),
+    "CatPgGfx": ("graphics", "graphics.md"),
+    "CatPgGfx2D": ("graphics", "graphics.md"),
+    "CatPgGfxInput": ("graphics", "graphics.md"),
+    "CatPgGfxScreen": ("graphics", "graphics.md"),
+    "CatPgInput": ("console", "basics.md"),
+    "CatPgMath": ("math", "math.md"),
+    "CatPgMemory": ("pointers", "pointers.md"),
+    "CatPgMisc": ("general", "basics.md"),
+    "CatPgModularizing": ("procedures", "procedures.md"),
+    "CatPgOpArithmetic": ("operators", "operators.md"),
+    "CatPgOpAssignment": ("operators", "operators.md"),
+    "CatPgOpConditional": ("operators", "operators.md"),
+    "CatPgOpIndex": ("operators", "operators.md"),
+    "CatPgOpIndexing": ("operators", "operators.md"),
+    "CatPgOpIterating": ("operators", "operators.md"),
+    "CatPgOpLogical": ("operators", "operators.md"),
+    "CatPgOpMemory": ("operators", "operators.md"),
+    "CatPgOpPoint": ("operators", "pointers.md"),
+    "CatPgOpPrepro": ("operators", "preprocessor.md"),
+    "CatPgOpShortCircuit": ("operators", "operators.md"),
+    "CatPgOpString": ("operators", "operators.md"),
+    "CatPgOpTypeclass": ("operators", "operators.md"),
+    "CatPgOpsys": ("general", "basics.md"),
+    "CatPgPreProcess": ("preprocessor", "preprocessor.md"),
+    "CatPgProcedures": ("procedures", "procedures.md"),
+    "CatPgProgrammer": ("compiler", "compiler.md"),
+    "CatPgStdDataTypes": ("types", "types.md"),
+    "CatPgString": ("strings", "strings.md"),
+    "CatPgThreading": ("threading", "threading.md"),
+    "CatPgUserDefTypes": ("user-defined-types", "user-defined-types.md"),
+    "CatPgVariables": ("types", "types.md"),
+}
+SKIP_CAT_PAGES = {"CatPgFullIndex", "CatPgFunctIndex", "CatPgOperators"}
+
+BR_TAG = re.compile(r"<br[^>]*>", re.I)
+ANY_TAG = re.compile(r"<[^>]+>")
+SECT_TITLE = re.compile(r'<div class="fb_sect_title">')
 
 
-def extract_title(soup) -> str:
-    """Extract keyword name from <div id="fb_tab_l"> or <title>."""
-    title_elem = soup.find('div', id='fb_tab_l')
-    if title_elem:
-        return title_elem.get_text(strip=True)
-    if soup.title:
-        title_text = soup.title.string or ""
-        # Handle titles like "(Print | ?)" - take first name
-        if '|' in title_text:
-            title_text = title_text.split('|')[0].strip('() ')
-        return title_text.strip()
-    return ""
+# ---------- text extraction helpers ----------
+
+def html_to_text(html: str, keep_lines: bool = False) -> str:
+    """HTML fragment -> text. keep_lines=True turns <br> into newlines (code);
+    otherwise breaks collapse to spaces (prose)."""
+    html = BR_TAG.sub("\n" if keep_lines else " ", html)
+    text = unescape(ANY_TAG.sub("", html)).replace("\xa0", " ").replace("\r", "")
+    if keep_lines:
+        lines = [re.sub(r"[ \t]+", " ", ln).rstrip() for ln in text.split("\n")]
+        return "\n".join(ln for ln in lines if ln.strip())
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def extract_description(body_div) -> str:
-    """Extract one-line description from first text in body."""
-    text = body_div.get_text(separator=' ', strip=True)
-    # First sentence or up to 100 chars
-    text = text[:200].split('\n')[0].strip()
-    return text
+def cap_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    pos = max(cut.rfind(". "), cut.rfind("; "))
+    if pos > limit // 2:
+        return cut[: pos + 1].strip()
+    return cut.rsplit(" ", 1)[0].strip() + "..."
 
 
-def extract_sections(soup) -> dict:
-    """Extract all sections by <div class="fb_sect_title">.</div>"""
-    sections = {}
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        sect_name = sect.get_text(strip=True)
-        cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-        if cont:
-            # Clean HTML tags, keep text
-            text = cont.get_text(separator=' ', strip=True)
-            sections[sect_name] = text
-    return sections
+def get_body_html(page: str) -> Optional[str]:
+    m = re.search(r'<div id="fb_pg_body">', page)
+    return page[m.end():] if m else None
 
 
-def parse_parameters(params_text: str) -> list:
-    """Parse parameter list from Parameters section text."""
+def split_sections(body_html: str):
+    """Return (intro_text, [(title, content_html), ...])."""
+    marks = list(SECT_TITLE.finditer(body_html))
+    intro = html_to_text(body_html[: marks[0].start()]) if marks else html_to_text(body_html)
+    sections = []
+    for i, m in enumerate(marks):
+        start = m.end()
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(body_html)
+        chunk = body_html[start:end]
+        t_end = chunk.find("</div>")
+        title = html_to_text(chunk[:t_end]) if t_end != -1 else ""
+        content = chunk[t_end + len("</div>"):] if t_end != -1 else chunk
+        sections.append((title.strip(), content))
+    return intro, sections
+
+
+def find_section(sections, *titles: str) -> Optional[str]:
+    wanted = {t.lower() for t in titles}
+    for title, content in sections:
+        if title.lower() in wanted:
+            return content
+    return None
+
+
+# ---------- field extractors ----------
+
+def normalize_name(raw: str) -> tuple:
+    """'(Print | ?) #' -> ('Print #', ['? #']); '(Pointer | Ptr)' -> ('Pointer', ['Ptr'])"""
+    raw = raw.strip()
+    m = re.match(r"^\(([^|)]+)\s*\|\s*([^)]+)\)\s*(.*)$", raw)
+    if m:
+        a, b, suffix = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        return f"{a} {suffix}".strip(), [f"{b} {suffix}".strip()]
+    return raw, []
+
+
+def extract_title(page: str) -> tuple:
+    m = re.search(r'<div id="fb_tab_l">(.*?)</div>', page, re.S)
+    if m:
+        return normalize_name(html_to_text(m.group(1)))
+    return "", []
+
+
+def extract_syntax(sections) -> str:
+    cont = find_section(sections, "Syntax")
+    return html_to_text(cont, keep_lines=True) if cont else ""
+
+
+def extract_usage(sections) -> str:
+    cont = find_section(sections, "Usage")
+    return html_to_text(cont, keep_lines=True) if cont else ""
+
+
+def extract_parameters(sections) -> list:
+    """Parameters section: <tt><i>name</i></tt> then <div class="fb_indent">description"""
     params = []
-    # Pattern: parameter name (italic) followed by description
-    # The HTML has <tt><i>paramname</i></tt> then <div class="fb_indent">description
-    # For now, extract simple pattern
-    return params
-
-
-def extract_parameters_html(soup) -> list:
-    """Extract parameters from HTML structure."""
-    params = []
-    params_div = None
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if sect.get_text(strip=True) == 'Parameters':
-            params_div = sect.find_next_sibling('div', class_='fb_sect_cont')
-            break
-
-    if not params_div:
+    cont = find_section(sections, "Parameters")
+    if not cont:
         return params
-
-    # Find all <tt><i>...</i></tt> patterns (parameter names)
-    for tt in params_div.find_all('tt'):
-        i_elem = tt.find('i')
-        if i_elem:
-            param_name = i_elem.get_text(strip=True)
-            # Get following sibling text for description
-            desc = ""
-            sibling = tt.find_next_sibling()
-            if sibling and sibling.get_text(strip=True):
-                desc = sibling.get_text(strip=True)
-            else:
-                # Check for fb_indent div after this tt
-                indent = tt.find_parent('div', class_='fb_indent')
-                if indent:
-                    desc = indent.get_text(strip=True)
-
-            if param_name and param_name != 'i':
-                params.append({
-                    "name": param_name,
-                    "description": desc[:200]
-                })
-
+    for tt_html, desc_html in re.findall(
+        r"(<tt>.*?</tt>)\s*(?:<br[^>]*>\s*)*<div class=\"fb_indent\">(.*?)</div>", cont, re.S
+    ):
+        desc = html_to_text(desc_html)[:300]
+        for name_html in re.findall(r"<i>(.*?)</i>", tt_html, re.S):
+            name = html_to_text(name_html)
+            if name and name != "i":
+                params.append({"name": name, "description": desc})
     return params
 
 
-def extract_examples(soup) -> list:
-    """Extract code examples from <div class="freebasic"> blocks."""
+def extract_examples(sections) -> tuple:
+    """<div class="freebasic"> code with &nbsp; spacing intact + expected output tail."""
     examples = []
-    for div in soup.find_all('div', class_='freebasic'):
-        # Get raw text but clean up the highlighting
-        code_lines = []
-        for span in div.find_all(['span', 'tt', 'br']):
-            if span.name == 'br':
-                code_lines.append('\n')
-            elif span.name == 'span':
-                code_lines.append(span.get_text())
-            elif span.name == 'tt':
-                code_lines.append(span.get_text())
-            else:
-                code_lines.append(str(span))
-        code = ''.join(code_lines)
-        # Clean up HTML entities
-        code = code.replace('&nbsp;', ' ')
-        code = unescape(code)
-        # Remove excess whitespace
-        code = re.sub(r'\n+', '\n', code).strip()
+    output = ""
+    cont = find_section(sections, "Example", "Examples") or ""
+    for m in re.finditer(r'<div class="freebasic">(.*?)</div>', cont, re.S):
+        code = html_to_text(m.group(1), keep_lines=True)
         if code:
             examples.append(code)
-    return examples
+        # expected output lives in a <pre>/<tt> block right after "will produce ..."
+        m2 = re.search(
+            r"(?:will produce|prints?|output)[^<]{0,60}(?:<br[^>]*>\s*)*"
+            r"(?:<pre[^>]*>|<tt[^>]*>)(.*?)(?:</pre>|</tt>)",
+            cont[m.end():], re.S | re.I,
+        )
+        if m2:
+            output = html_to_text(m2.group(1), keep_lines=True)
+    return examples, output
 
 
-def extract_see_also(soup) -> list:
-    """Extract 'See also' keyword links."""
-    see_also = []
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if sect.get_text(strip=True) == 'See also':
-            cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-            if cont:
-                for a in cont.find_all('a', href=re.compile(r'^KeyPg')):
-                    see_also.append(a.get_text(strip=True))
-            break
-    return see_also
+def extract_section_text(sections, *titles: str, limit: int = 500) -> Optional[str]:
+    cont = find_section(sections, *titles)
+    if not cont:
+        return None
+    text = html_to_text(cont)
+    return text[:limit] if text else None
 
 
-def extract_syntax(soup) -> str:
-    """Extract syntax from Syntax section."""
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if sect.get_text(strip=True) == 'Syntax':
-            cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-            if cont:
-                # Get text content, clean up
-                syntax = cont.get_text(separator=' ', strip=True)
-                syntax = unescape(syntax)
-                return syntax[:300]  # Truncate long syntax
-    return ""
+def extract_see_also(sections) -> list:
+    cont = find_section(sections, "See also")
+    if not cont:
+        return []
+    names = []
+    for _, label in re.findall(r'<a href="(KeyPg\w+\.html)"[^>]*>([^<]*)</a>', cont):
+        if label.strip():
+            names.append(html_to_text(label))
+    return names
 
 
-def extract_dialect_differences(soup) -> Optional[str]:
-    """Extract dialect differences."""
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if 'Dialect Differences' in sect.get_text(strip=True):
-            cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-            if cont:
-                return cont.get_text(strip=True)[:500]
-    return None
+# ---------- category mapping ----------
+
+def build_category_map(manual_dir: Path) -> dict:
+    """KeyPg file -> (category, doc), from the manual's CatPg index pages."""
+    mapping = {}
+    for stem, (category, doc) in CATEGORY_MAP.items():
+        if stem in SKIP_CAT_PAGES:
+            continue
+        f = manual_dir / f"{stem}.html"
+        if not f.exists():
+            continue
+        page = f.read_text(encoding="utf-8", errors="replace")
+        for keypg in re.findall(r'href="(KeyPg\w+\.html)"', page):
+            mapping.setdefault(keypg, (category, doc))
+    return mapping
 
 
-def extract_qb_differences(soup) -> Optional[str]:
-    """Extract QB differences."""
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if 'Differences from QB' in sect.get_text(strip=True):
-            cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-            if cont:
-                return cont.get_text(strip=True)[:500]
-    return None
+# ---------- page parsing ----------
 
-
-def extract_return_value(soup) -> Optional[str]:
-    """Extract return value description."""
-    for sect in soup.find_all('div', class_='fb_sect_title'):
-        if 'Return Value' in sect.get_text(strip=True):
-            cont = sect.find_next_sibling('div', class_='fb_sect_cont')
-            if cont:
-                return cont.get_text(strip=True)[:300]
-    return None
-
-
-def extract_category_from_filename(filename: str) -> str:
-    """Derive category from filename."""
-    name = filename.replace('KeyPg', '').replace('.html', '').lower()
-    # Common categories
-    categories = {
-        'print': 'console', 'input': 'console', 'cls': 'console',
-        'dim': 'types', 'var': 'types', 'type': 'user-defined-types',
-        'function': 'procedures', 'sub': 'procedures', 'return': 'procedures',
-        'for': 'control-flow', 'while': 'control-flow', 'do': 'control-flow',
-        'if': 'control-flow', 'select': 'control-flow',
-        'open': 'file-io', 'close': 'file-io', 'get': 'file-io', 'put': 'file-io',
-        'string': 'strings', 'len': 'strings', 'mid': 'strings',
-        'screen': 'graphics', 'circle': 'graphics', 'line': 'graphics',
-        'arraylen': 'arrays', 'lbound': 'arrays', 'ubound': 'arrays',
-        'mkdir': 'file-io', 'chdir': 'file-io',
-        'threadcreate': 'threading', 'mutexcreate': 'threading',
-    }
-    return categories.get(name, 'general')
-
-
-def parse_keyword_file(html_path: Path) -> Optional[dict]:
-    """Parse a single KeyPg*.html file."""
+def parse_keyword_file(html_path: Path, cat_map: dict) -> Optional[dict]:
     try:
-        with open(html_path, encoding='utf-8') as f:
-            soup = BeautifulSoup(f.read(), 'html.parser')
-
-        body = soup.find('div', id='fb_pg_body')
-        if not body:
+        page = html_path.read_text(encoding="utf-8", errors="replace")
+        body = get_body_html(page)
+        if body is None:
             return None
 
-        name = extract_title(soup)
+        name, aliases = extract_title(page)
         if not name:
             return None
 
-        entry = {
-            "name": name,
-            "aliases": [],
-            "category": extract_category_from_filename(html_path.name),
-            "syntax": extract_syntax(soup),
-            "description": extract_description(body),
-            "parameters": extract_parameters_html(soup),
-            "return": extract_return_value(soup),
-            "examples": extract_examples(soup),
-            "dialect_differences": extract_dialect_differences(soup),
-            "qb_differences": extract_qb_differences(soup),
-            "see_also": extract_see_also(soup),
-            "file": html_path.name
-        }
+        intro, sections = split_sections(body)
+        category, doc = cat_map.get(html_path.name, ("general", "basics.md"))
+        examples, example_output = extract_examples(sections)
 
-        return entry
-    except Exception as e:
-        print(f"Error parsing {html_path}: {e}")
+        return {
+            "name": name,
+            "aliases": aliases,
+            "category": category,
+            "doc": doc,
+            "syntax": extract_syntax(sections),
+            "usage": extract_usage(sections),
+            "description": cap_text(intro, 300),
+            "parameters": extract_parameters(sections),
+            "return": extract_section_text(sections, "Return Value", limit=300),
+            "examples": examples,
+            "example_output": example_output or None,
+            "dialect_differences": extract_section_text(sections, "Dialect Differences"),
+            "qb_differences": extract_section_text(sections, "Differences from QB"),
+            "see_also": extract_see_also(sections),
+            "file": html_path.name,
+        }
+    except Exception as e:  # keep going; report at the end
+        print(f"Error parsing {html_path}: {e}", file=sys.stderr)
         return None
 
 
+def find_manual_dir(explicit: Optional[str]) -> Path:
+    candidates = []
+    if explicit:
+        candidates.append(explicit)
+    if os.environ.get("FREEBASIC_MANUAL_DIR"):
+        candidates.append(os.environ["FREEBASIC_MANUAL_DIR"])
+    base_dir = Path(__file__).resolve().parent.parent
+    candidates.append(str(base_dir.parent / "references" / "FB-manual"))
+    candidates.append(r"E:\scoop\apps\freebasic\current\doc\FB-manual-1.10.1-html")
+    for c in candidates:
+        p = Path(c)
+        if p.is_dir() and any(p.glob("KeyPg*.html")):
+            return p
+    print("Error: FreeBASIC manual directory not found. Use --manual DIR.", file=sys.stderr)
+    sys.exit(1)
+
+
 def main():
-    base_dir = Path(__file__).parent.parent  # skills/freebasic
-    manual_dir = base_dir.parent / "references" / "FB-manual"  # ../references/FB-manual
-    output_file = base_dir / "data" / "api.json"
+    parser = argparse.ArgumentParser(description="Extract FreeBASIC API data from manual HTML")
+    parser.add_argument("--manual", help="Path to FB-manual-*-html directory")
+    parser.add_argument("--output", help="Output JSON path (default: data/api.json)")
+    args = parser.parse_args()
+
+    base_dir = Path(__file__).resolve().parent.parent
+    manual_dir = find_manual_dir(args.manual)
+    output_file = Path(args.output) if args.output else base_dir / "data" / "api.json"
 
     print(f"Scanning {manual_dir}...")
-
-    keywords = []
     keypg_files = sorted(manual_dir.glob("KeyPg*.html"))
     print(f"Found {len(keypg_files)} keyword files")
 
-    for i, html_file in enumerate(keypg_files):
-        if i % 50 == 0:
-            print(f"Processing {i}/{len(keypg_files)}...")
+    cat_map = build_category_map(manual_dir)
+    print(f"Category map covers {len(cat_map)} keyword files")
 
-        entry = parse_keyword_file(html_file)
+    keywords = []
+    for i, html_file in enumerate(keypg_files):
+        if i % 100 == 0:
+            print(f"Processing {i}/{len(keypg_files)}...")
+        entry = parse_keyword_file(html_file, cat_map)
         if entry:
             keywords.append(entry)
 
+    keywords.sort(key=lambda k: k["name"].lower())
     print(f"\nExtracted {len(keywords)} keyword entries")
 
-    # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump({"keywords": keywords, "count": len(keywords)}, f, indent=2, ensure_ascii=False)
-
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "version": MANUAL_VERSION,
+                "source": f"FreeBASIC manual {MANUAL_VERSION} (FB-manual-{MANUAL_VERSION}-html)",
+                "count": len(keywords),
+                "keywords": keywords,
+            },
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
     print(f"Written to {output_file}")
 
 

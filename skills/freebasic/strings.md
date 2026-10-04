@@ -1,5 +1,5 @@
 For string basics, see [basics.md](basics.md).
-For string functions, see [strings.md](strings.md).
+For string operators (concatenation, comparison), see [operators.md](operators.md).
 
 # String Functions
 
@@ -25,8 +25,8 @@ Print Len(s)          ' 9
 ```freebasic
 Dim s As String = "FreeBASIC"
 Left$(s, 4)           ' "Free"
-Right$(s, 6)          ' "BASIC"
-Mid$(s, 5, 4)         ' "BASIC" (from position 5, 4 chars)
+Right$(s, 6)          ' "eBASIC" (last 6 chars)
+Mid$(s, 5, 4)         ' "BASI" (4 chars from position 5)
 Mid$(s, 5)            ' "BASIC" (from position 5 to end)
 ```
 
@@ -43,7 +43,7 @@ UCase$(s)             ' "HELLO"
 ```freebasic
 Dim s As String = "FreeBASIC"
 InStr(s, "BAS")       ' returns 5 (position of "BAS")
-InStrRev(s, "A")      ' returns 9 (last occurrence)
+InStrRev(s, "A")      ' returns 6 (last occurrence)
 ```
 
 ## Trimming

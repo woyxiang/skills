@@ -37,17 +37,20 @@ Open "data.txt" For Output As #f
 ## Writing to Files
 
 ```freebasic
+Dim x As Integer = 42
 Print #1, "Hello"           ' write line with newline
-Print #1, "Value: "; x       ' with variable
-Write #1, data1, data2       ' binary-style write
+Print #1, "Value: "; x      ' with variable
+
+Dim data1 As Integer = 1, data2 As Integer = 2
+Write #1, data1, data2      ' comma-separated values (quote strings)
 ```
 
 ## Reading from Files
 
 ```freebasic
-Dim line As String
-Input #1, line                ' read until comma or newline
-Line Input #1, line           ' read entire line
+Dim s As String
+Input #1, s                  ' read until comma or newline
+Line Input #1, s             ' read entire line
 ```
 
 ## Binary I/O
@@ -63,11 +66,13 @@ Put #1, 100, x               ' write at position
 ## File Position
 
 ```freebasic
-Seek #1, 1                   ' move to beginning
-Seek(#1)                     ' get current position
-EOF(1)                       ' check end of file
-LOF(1)                       ' length of file
-FileAttr(1)                  ' file mode
+Seek #1, 1                   ' move to beginning (statement form)
+Print Seek(1)                ' get current position (function form: no #)
+Print EOF(1)                 ' check end of file
+Print LOF(1)                 ' length of file
+
+#include once "file.bi"      ' FileAttr lives here
+Print FileAttr(1)            ' file mode
 ```
 
 ## Examples
@@ -75,9 +80,9 @@ FileAttr(1)                  ' file mode
 ```freebasic
 ' Write data
 Dim f As Integer = FreeFile()
-Open "data.bin" For Binary As #f
 Dim As Integer age = 25
 Dim As Double salary = 50000.0
+Open "data.bin" For Binary As #f
 Put #f, , age
 Put #f, , salary
 Close #f
@@ -89,7 +94,8 @@ Get #f, , salary
 Close #f
 
 ' Text file
-Dim f As Integer = FreeFile()
+#include once "vbcompat.bi"   ' for Now
+f = FreeFile()
 Open "log.txt" For Append As #f
 Print #f, "Log entry: "; Now
 Close #f
@@ -101,7 +107,7 @@ Close #f
 Open Cons For Input As #1    ' stdin
 Open Cons For Output As #1   ' stdout
 Open Err For Input As #1     ' stderr
-Open Lpt For Output As #1    ' printer
+Open Lpt "LPT1:" As #1       ' printer (Lpt takes a device name, no For)
 ```
 
 ## See Also

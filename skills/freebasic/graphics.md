@@ -1,18 +1,19 @@
-For basic drawing, see [basics.md](basics.md).
-For user input, see [basics.md](basics.md).
+For console output, see [basics.md](basics.md).
+For user input, see the User Input section below.
 
 # Graphics Library
+
+Graphics commands open a graphics screen via GfxLib (`Screen`/`ScreenRes`); most statements are not available in `-lang qb` (or need `__`-prefixed aliases there).
 
 ## Screen Modes
 
 ```freebasic
-Screen 12           ' 640x480, 16 colors
-Screen 13           ' 320x200, 256 colors
-Screen 19           ' 640x480, 256 colors
-Screen 20           ' 640x400, 256 colors
+Screen 12            ' 640x480, 16 colors
+Screen 13            ' 320x200, 256 colors
+Screen 18, 32        ' 640x480, 32bpp depth
 
-' 32-bit color
-Screen 20, , , 640, 480, 32
+' custom resolution/depth/pages - the flexible form
+ScreenRes 640, 480, 32
 ```
 
 ## Color
@@ -29,38 +30,42 @@ Color , RGB(0, 0, 128)
 ## Drawing Commands
 
 ```freebasic
-Line (0, 0)-(100, 100), 4          ' draw line
+Dim As Integer x = 50, y = 60, col = 4
+
+Line (0, 0)-(100, 100), col        ' draw line
 Line (0, 0)-(100, 100), , B        ' rectangle (box)
 Line (0, 0)-(100, 100), , BF       ' filled box
 
 Circle (200, 200), 50, 12          ' circle outline
 Circle (200, 200), 50, 12, , , , F ' filled circle
 
-PSet (x, y), color                 ' set single pixel
-Preset (x, y)                      ' set pixel to black
+PSet (x, y), col                   ' set single pixel
+Preset (x, y)                      ' set pixel to background color
 
-Draw String (x, y), "text", color  ' draw text at position
+Draw String (x, y), "text", col    ' draw text at position
 ```
 
 ## Screen Information
 
 ```freebasic
-ScreenInfo width, height, depth   ' get screen dimensions
-Width 80, 30                       ' set text mode
+Dim As Integer w, h, d
+ScreenInfo w, h, d                ' get screen dimensions (width/height/depth)
+Width 80, 30                      ' set text mode size
 ```
 
 ## Double Buffering
 
 ```freebasic
-Screen 20, , 2                    ' enable double buffer
+Screen 20, , 2                    ' mode 20 with 2 pages
 ' ... draw operations ...
-Flip                               ' copy buffer to screen
-Cls                                ' clear back buffer
+Flip                              ' copy buffer to screen
+Cls                               ' clear back buffer
 ```
 
 ## Images
 
 ```freebasic
+Dim As Integer x = 0, y = 0
 Dim img As Any Ptr = ImageCreate(100, 100)  ' create image
 BLoad "sprite.bmp", img                    ' load image
 Put (x, y), img, PSet                      ' draw image
@@ -71,28 +76,35 @@ ImageDestroy(img)                          ' free memory
 
 ```freebasic
 ' Keyboard
-Dim As Integer key
-key = GetKey$()
-MultiKey(F1)                             ' check if F1 pressed
+Dim As Integer k
+k = GetKey()                               ' no $ suffix on GetKey
+
+' Scancode constants (SC_F1, SC_LEFT, ...) live in fbgfx.bi,
+' in the FB namespace when compiling in -lang fb
+#include once "fbgfx.bi"
+Using FB
+If MultiKey(SC_F1) Then Print "F1 is held down"
 
 ' Mouse
-Dim mx As Integer, my As Integer, mb As Integer
+Dim As Integer mx, my, mb
 GetMouse mx, my, mb
 ```
 
 ## Palette
 
 ```freebasic
+Dim As Integer r, g, b
 Palette Get 0, r, g, b         ' get color
-Palette Set 0, r, g, b         ' set color
-Palette Using pal()            ' set multiple
+
+Dim pal(0 To 255) As UInteger
+Palette Using pal(0)           ' set multiple (array element, not pal())
 ```
 
 ## Viewport
 
 ```freebasic
 View (0, 0)-(639, 479), , 7    ' set drawing area
-Window (0, 0)-(639, 479)        ' coordinate system
+Window (0, 0)-(639, 479)       ' coordinate system
 ```
 
 ## Example
@@ -120,4 +132,4 @@ Sleep
 ## See Also
 
 - [basics.md](basics.md) - Console I/O
-- [procedures.md](procedures.md) - Organizing graphics code
+- [date-time.md](date-time.md) - Sleep
